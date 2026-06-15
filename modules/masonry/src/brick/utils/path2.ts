@@ -74,11 +74,9 @@ export class BrickOutlineGenerator {
 
     // ────────────────────────── Dimension Calculation ────────────────────────────────────────────────
 
-    private computeDimensions(
-        input: BrickOutlineInput,
-        minimums: BrickMinimums,
-    ): ComputedDimensions {
-        const { minWidth, minLabelHeight, minNestHeight, minParamHeight, minArgHeight } = minimums;
+    computeDimensions(input: BrickOutlineInput): ComputedDimensions {
+        const { minWidth, minLabelHeight, minNestHeight, minParamHeight, minArgHeight } =
+            this.minimums;
         const params = input.paramArgDims.map((p) => p.param ?? { w: 0, h: minParamHeight });
         const args = input.paramArgDims.map((p) => p.arg ?? { w: 0, h: minArgHeight });
 
@@ -150,10 +148,8 @@ export class BrickOutlineGenerator {
      * Returns the y-coordinate of each right-edge notch centre, one per argument slot.
      * Each centre sits NOTCH_OFFSET_Y below the top of its row, regardless of row height.
      */
-    private computeArgNotchCentreYs(
-        paramArgDims: BrickOutlineInput['paramArgDims'],
-        minArgHeight: number,
-    ): number[] {
+    private computeArgNotchCentreYs(paramArgDims: BrickOutlineInput['paramArgDims']): number[] {
+        const minArgHeight = this.minimums.minArgHeight;
         const centreYs: number[] = [];
         let slotTop = 0;
         for (const { arg } of paramArgDims) {
@@ -456,9 +452,8 @@ export class BrickOutlineGenerator {
         headHeight: number,
         nestHeight: number,
         hasNesting: boolean,
-        minimums: BrickMinimums,
     ): BrickOutlineOutput['bounds'] {
-        const { minLabelHeight, minNestHeight, minParamHeight, minArgHeight } = minimums;
+        const { minLabelHeight, minNestHeight, minParamHeight, minArgHeight } = this.minimums;
         const strokeWidth = input.strokeWidth;
 
         const label: Bounds = {
@@ -521,10 +516,7 @@ export class BrickOutlineGenerator {
      *          and notch protrusion depths (for SVG viewBox sizing).
      */
     generate(input: BrickOutlineInput): BrickOutlineOutput {
-        const { width, height, headHeight, nestHeight } = this.computeDimensions(
-            input,
-            this.minimums,
-        );
+        const { width, height, headHeight, nestHeight } = this.computeDimensions(input);
 
         const strokeWidth = input.strokeWidth;
         const hasNesting = input.nestingDims !== undefined;
@@ -533,10 +525,7 @@ export class BrickOutlineGenerator {
         const hasBottomNotch = input.hasBottomNotch ?? false;
         const hasLeftNotch = input.hasLeftNotch ?? false;
 
-        const argNotchCentreYs = this.computeArgNotchCentreYs(
-            input.paramArgDims,
-            this.minimums.minArgHeight,
-        );
+        const argNotchCentreYs = this.computeArgNotchCentreYs(input.paramArgDims);
 
         // Without nesting: top → right → bottom → left → close
         // With nesting:    top → right → cavityRoof → cavityLeft → foot → stepRight → stepBottom → left → close
@@ -562,14 +551,7 @@ export class BrickOutlineGenerator {
 
         const path = segments.join(' ');
 
-        const bounds = this.generateBounds(
-            input,
-            width,
-            headHeight,
-            nestHeight,
-            hasNesting,
-            this.minimums,
-        );
+        const bounds = this.generateBounds(input, width, headHeight, nestHeight, hasNesting);
 
         return {
             path,

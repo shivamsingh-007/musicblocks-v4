@@ -10,8 +10,7 @@ import {
     TAIL_INDENT_W,
     TAIL_STEP_H,
     TAIL_STEP_W,
-    createBrickOutlineGenerator,
-    computeDimensions,
+    BrickOutlineGenerator,
 } from '../path2';
 
 const MINIMUMS: BrickMinimums = {
@@ -22,92 +21,76 @@ const MINIMUMS: BrickMinimums = {
     minArgHeight: 40,
 };
 
-const generateBrickOutline = createBrickOutlineGenerator(MINIMUMS);
+const outlineGenerator = new BrickOutlineGenerator(MINIMUMS);
+const generateBrickOutline = (input: BrickOutlineInput) => outlineGenerator.generate(input);
+const computeDimensions = (input: BrickOutlineInput) => outlineGenerator.computeDimensions(input);
 
 // ────────────────────────── computeDimensions ────────────────────────────────────────────────────
 
 describe('path V2: computeDimensions', () => {
     describe('width', () => {
         it('main label dominates (no stroke)', () => {
-            const dims = computeDimensions(
-                {
-                    strokeWidth: 0,
-                    labelDims: { w: 200, h: 30 },
-                    paramArgDims: [],
-                },
-                MINIMUMS,
-            );
+            const dims = computeDimensions({
+                strokeWidth: 0,
+                labelDims: { w: 200, h: 30 },
+                paramArgDims: [],
+            });
             // headWidth = HEAD_PAD_X1 + 200 + HEAD_PAD_X2 = 214 ; width = max(214, TAIL_STEP_W, minWidth)
             expect(dims.width).toBe(214);
         });
 
         it('MIN_WIDTH dominates a small brick (no stroke)', () => {
-            const dims = computeDimensions(
-                {
-                    strokeWidth: 0,
-                    labelDims: { w: 30, h: 10 },
-                    paramArgDims: [],
-                },
-                MINIMUMS,
-            );
+            const dims = computeDimensions({
+                strokeWidth: 0,
+                labelDims: { w: 30, h: 10 },
+                paramArgDims: [],
+            });
             // headWidth = HEAD_PAD_X1 + 30 + HEAD_PAD_X2 = 44 ; width = max(44, TAIL_STEP_W, minWidth) = 120
             expect(dims.width).toBe(MINIMUMS.minWidth);
         });
 
         it('adds s/2 + s/2 of stroke clearance to the head when the head dominates', () => {
             const s = 4;
-            const dims = computeDimensions(
-                {
-                    strokeWidth: s,
-                    labelDims: { w: 200, h: 30 },
-                    paramArgDims: [],
-                },
-                MINIMUMS,
-            );
+            const dims = computeDimensions({
+                strokeWidth: s,
+                labelDims: { w: 200, h: 30 },
+                paramArgDims: [],
+            });
             // headWidth = s + HEAD_PAD_X1 + 200 + HEAD_PAD_X2 = 218
             expect(dims.width).toBe(218);
         });
 
         it('does NOT add stroke clearance when MIN_WIDTH wins (documents the s-smaller edge case)', () => {
             const s = 4;
-            const dims = computeDimensions(
-                {
-                    strokeWidth: s,
-                    labelDims: { w: 30, h: 10 },
-                    paramArgDims: [],
-                },
-                MINIMUMS,
-            );
+            const dims = computeDimensions({
+                strokeWidth: s,
+                labelDims: { w: 30, h: 10 },
+                paramArgDims: [],
+            });
             // headWidth = s + HEAD_PAD_X1 + 30 + HEAD_PAD_X2 = 48 ; tailWidth = max(s+TAIL_INDENT_W, s+TAIL_STEP_W) = 34 ; width = max(48,34,120) = 120
             expect(dims.width).toBe(MINIMUMS.minWidth);
         });
 
         it('widens for the widest param plus the label gutter', () => {
-            const dims = computeDimensions(
-                {
-                    strokeWidth: 0,
-                    labelDims: { w: 60, h: 20 },
-                    paramArgDims: [
-                        { param: { w: 40, h: 15 }, arg: null },
-                        { param: { w: 30, h: 25 }, arg: null },
-                    ],
-                },
-                MINIMUMS,
-            );
+            const dims = computeDimensions({
+                strokeWidth: 0,
+                labelDims: { w: 60, h: 20 },
+                paramArgDims: [
+                    { param: { w: 40, h: 15 }, arg: null },
+                    { param: { w: 30, h: 25 }, arg: null },
+                ],
+            });
             // headWidth = HEAD_PAD_X1 + 60 + 10(gutter) + 40(maxParam) + HEAD_PAD_X2 = 124
             expect(dims.width).toBe(124);
         });
 
         it('tail (nesting) can drive the width', () => {
-            const dims = computeDimensions(
-                {
-                    strokeWidth: 0,
-                    labelDims: { w: 20, h: 10 },
-                    paramArgDims: [],
-                    nestingDims: { w: 200, h: 50 },
-                },
-                MINIMUMS,
-            );
+            const dims = computeDimensions({
+                strokeWidth: 0,
+                labelDims: { w: 20, h: 10 },
+                paramArgDims: [],
+                nestingDims: { w: 200, h: 50 },
+            });
             // tailIndentWidth = TAIL_INDENT_W + 200 = 206 ; width = max(34, 206, minWidth) = 206
             expect(dims.width).toBe(206);
         });
@@ -115,14 +98,11 @@ describe('path V2: computeDimensions', () => {
 
     describe('height', () => {
         it('falls back to the main-label minimum height', () => {
-            const dims = computeDimensions(
-                {
-                    strokeWidth: 0,
-                    labelDims: { w: 60, h: 10 },
-                    paramArgDims: [],
-                },
-                MINIMUMS,
-            );
+            const dims = computeDimensions({
+                strokeWidth: 0,
+                labelDims: { w: 60, h: 10 },
+                paramArgDims: [],
+            });
             // headHeight = HEAD_PAD_Y1 + max(10,20) + HEAD_PAD_Y2 = 5 + 20 + 3 = 28
             expect(dims.headHeight).toBe(28);
             expect(dims.height).toBe(28);
@@ -130,46 +110,37 @@ describe('path V2: computeDimensions', () => {
         });
 
         it('stacked null-arg rows drive head height via MIN_ARG_H', () => {
-            const dims = computeDimensions(
-                {
-                    strokeWidth: 0,
-                    labelDims: { w: 60, h: 20 },
-                    paramArgDims: [
-                        { param: { w: 40, h: 15 }, arg: null },
-                        { param: { w: 30, h: 25 }, arg: null },
-                    ],
-                },
-                MINIMUMS,
-            );
+            const dims = computeDimensions({
+                strokeWidth: 0,
+                labelDims: { w: 60, h: 20 },
+                paramArgDims: [
+                    { param: { w: 40, h: 15 }, arg: null },
+                    { param: { w: 30, h: 25 }, arg: null },
+                ],
+            });
             // argsTotalHeight = minArgHeight + minArgHeight + 0(gutter, s=0) = 80
             expect(dims.headHeight).toBe(2 * MINIMUMS.minArgHeight);
         });
 
         it('adds strokeWidth once to the total height (top + bottom margin)', () => {
             const s = 6;
-            const dims = computeDimensions(
-                {
-                    strokeWidth: s,
-                    labelDims: { w: 60, h: 30 },
-                    paramArgDims: [],
-                },
-                MINIMUMS,
-            );
+            const dims = computeDimensions({
+                strokeWidth: s,
+                labelDims: { w: 60, h: 30 },
+                paramArgDims: [],
+            });
             expect(dims.headHeight).toBe(44);
             expect(dims.height).toBe(44); // headHeight + 0 (no nesting)
         });
 
         it('compound brick height = headHeight + nestHeight + foot + s', () => {
             const s = 4;
-            const dims = computeDimensions(
-                {
-                    strokeWidth: s,
-                    labelDims: { w: 80, h: 20 },
-                    paramArgDims: [],
-                    nestingDims: { w: 50, h: 50 },
-                },
-                MINIMUMS,
-            );
+            const dims = computeDimensions({
+                strokeWidth: s,
+                labelDims: { w: 80, h: 20 },
+                paramArgDims: [],
+                nestingDims: { w: 50, h: 50 },
+            });
             expect(dims.headHeight).toBe(32); // s/2 + HEAD_PAD_Y1 + max(20,20) + HEAD_PAD_Y2 + s/2
             expect(dims.nestHeight).toBe(50); // max(50,40)
             // height = headHeight + (nestHeight + s/2 + TAIL_STEP_H + s/2) = 32 + (50 + 2 + TAIL_STEP_H + 2) = 92
@@ -177,31 +148,25 @@ describe('path V2: computeDimensions', () => {
         });
 
         it('enforces the minimum nesting height', () => {
-            const dims = computeDimensions(
-                {
-                    strokeWidth: 0,
-                    labelDims: { w: 80, h: 20 },
-                    paramArgDims: [],
-                    nestingDims: { w: 50, h: 5 },
-                },
-                MINIMUMS,
-            );
+            const dims = computeDimensions({
+                strokeWidth: 0,
+                labelDims: { w: 80, h: 20 },
+                paramArgDims: [],
+                nestingDims: { w: 50, h: 5 },
+            });
             expect(dims.nestHeight).toBe(MINIMUMS.minNestHeight);
         });
 
         it('no gutter between stacked arg bricks (args supply their own spacing)', () => {
             const s = 4;
-            const dims = computeDimensions(
-                {
-                    strokeWidth: s,
-                    labelDims: { w: 60, h: 20 },
-                    paramArgDims: [
-                        { param: null, arg: { w: 50, h: 30 } },
-                        { param: null, arg: { w: 50, h: 30 } },
-                    ],
-                },
-                MINIMUMS,
-            );
+            const dims = computeDimensions({
+                strokeWidth: s,
+                labelDims: { w: 60, h: 20 },
+                paramArgDims: [
+                    { param: null, arg: { w: 50, h: 30 } },
+                    { param: null, arg: { w: 50, h: 30 } },
+                ],
+            });
             // argsTotalHeight = 60, but headHeightByParams now dominates: 2(s/2) + 5(pad) + 40(minParams) + 8(gutter) + 3(pad) + 2(s/2) = 60
             expect(dims.headHeight).toBe(60);
         });
@@ -310,7 +275,7 @@ describe('path V2: generateBrickOutline', () => {
                 labelDims: { w: 120, h: 30 },
                 paramArgDims: [{ param: { w: 40, h: 18 }, arg: null }],
             };
-            const dims = computeDimensions(input, MINIMUMS);
+            const dims = computeDimensions(input);
             const headWidth = HEAD_PAD_X1 + 120 + LABEL_PARAM_GUTTER_X + 40 + HEAD_PAD_X2;
             expect(dims.width).toBe(Math.max(headWidth, TAIL_STEP_W, MINIMUMS.minWidth));
         });
@@ -376,15 +341,12 @@ describe('path V2: validity boundaries (documented, not yet enforced)', () => {
      */
     it('cavity interior shrinks by s below the computed nestHeight', () => {
         const s = 4;
-        const dims = computeDimensions(
-            {
-                strokeWidth: s,
-                labelDims: { w: 80, h: 20 },
-                paramArgDims: [],
-                nestingDims: { w: 50, h: 50 },
-            },
-            MINIMUMS,
-        );
+        const dims = computeDimensions({
+            strokeWidth: s,
+            labelDims: { w: 80, h: 20 },
+            paramArgDims: [],
+            nestingDims: { w: 50, h: 50 },
+        });
         const cavityInterior = dims.nestHeight - s;
         expect(cavityInterior).toBe(50 - s);
         // Content of height 50 no longer fits inside the inset cavity (50 - 4 = 46 < 50).
@@ -526,7 +488,7 @@ describe('path V2: notches', () => {
             paramArgDims: [oneArg, oneArg],
         };
         const r = generateBrickOutline(input);
-        const dims = computeDimensions(input, MINIMUMS);
+        const dims = computeDimensions(input);
         // Grooves are concave, so the outline's size still matches the raw dimensions.
         expect(r.width).toBe(dims.width);
         expect(r.height).toBe(dims.height);
