@@ -50,6 +50,16 @@ export const NOTCH_OFFSET_Y = 9;
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────
 
+interface NormalizedInput extends Omit<
+    BrickOutlineInput,
+    'hasTopNotch' | 'hasBottomNotch' | 'hasLeftNotch'
+> {
+    hasNesting: boolean;
+    hasTopNotch: boolean;
+    hasBottomNotch: boolean;
+    hasLeftNotch: boolean;
+}
+
 interface ComputedDimensions {
     /** Total outer width of the brick */
     width: number;
@@ -62,6 +72,17 @@ interface ComputedDimensions {
 }
 
 export class BrickOutlineGenerator {
+    private dims: ComputedDimensions = { width: 0, height: 0, headHeight: 0, nestHeight: 0 };
+    private input: NormalizedInput = {
+        strokeWidth: 0,
+        labelDims: { w: 0, h: 0 },
+        paramArgDims: [],
+        hasNesting: false,
+        hasTopNotch: false,
+        hasBottomNotch: false,
+        hasLeftNotch: false,
+    };
+
     /**
      * Creates a reusable brick outline generator bound to the given size minimums.
      *
@@ -141,6 +162,8 @@ export class BrickOutlineGenerator {
 
         const height = headHeight + tailHeight;
 
+        this.dims = { width, height, headHeight, nestHeight };
+
         return { width, height, headHeight, nestHeight };
     }
 
@@ -148,11 +171,11 @@ export class BrickOutlineGenerator {
      * Returns the y-coordinate of each right-edge notch centre, one per argument slot.
      * Each centre sits NOTCH_OFFSET_Y below the top of its row, regardless of row height.
      */
-    private computeArgNotchCentreYs(paramArgDims: BrickOutlineInput['paramArgDims']): number[] {
+    private computeArgNotchCentreYs(): number[] {
         const minArgHeight = this.minimums.minArgHeight;
         const centreYs: number[] = [];
         let slotTop = 0;
-        for (const { arg } of paramArgDims) {
+        for (const { arg } of this.input.paramArgDims) {
             const rowH = Math.max(arg?.h ?? 0, minArgHeight);
             if (arg !== null) {
                 centreYs.push(slotTop + NOTCH_OFFSET_Y);
@@ -165,7 +188,8 @@ export class BrickOutlineGenerator {
     // ────────────────────────── Arc Helpers ──────────────────────────────────────────────────────────
 
     /** Inward U-shape groove arc (left → right). Used by top notch and nested bottom notch. */
-    private buildVGroove(strokeWidth: number): string[] {
+    private buildVGroove(): string[] {
+        const strokeWidth = this.input.strokeWidth;
         const grooveR = V_NOTCH_RADIUS + strokeWidth;
         const lip = strokeWidth / 2;
         const R = grooveR - lip;
@@ -180,7 +204,8 @@ export class BrickOutlineGenerator {
     }
 
     /** Outward U-shape tab arc (right → left). Used by bottom notch and nested top notch. */
-    private buildVTab(strokeWidth: number): string[] {
+    private buildVTab(): string[] {
+        const strokeWidth = this.input.strokeWidth;
         const tabR = V_NOTCH_RADIUS;
         const lip = strokeWidth / 2;
         const R = tabR - lip;
@@ -205,9 +230,11 @@ export class BrickOutlineGenerator {
      * @param width       - Total outer width of the brick
      * @param hasTopNotch - Whether to draw the top notch groove
      */
-    private segTopEdge(strokeWidth: number, width: number, hasTopNotch: boolean): string[] {
+    private segTopEdge(): string[] {
+        const strokeWidth = this.input.strokeWidth;
+        const width = this.dims.width;
         // No notch — single flat span, inset by strokeWidth/2 at each end.
-        if (!hasTopNotch) {
+        if (!this.input.hasTopNotch) {
             return [`M ${strokeWidth / 2} ${strokeWidth / 2}`, `h ${width - strokeWidth}`];
         }
 
@@ -220,7 +247,7 @@ export class BrickOutlineGenerator {
         return [
             `M ${strokeWidth / 2} ${strokeWidth / 2}`,
             `h ${flatBefore}`, // flat run to groove left edge
-            ...this.buildVGroove(strokeWidth),
+            ...this.buildVGroove(),
             `h ${flatAfter}`, // flat run to brick right edge
         ];
     }
@@ -234,14 +261,11 @@ export class BrickOutlineGenerator {
      * @param headHeight   - Height of the head section
      * @param notchCentres - Absolute y positions (top → bottom) of each groove centre
      */
-    private segHeadRight(
-        strokeWidth: number,
-        headHeight: number,
-        notchCentres: number[],
-    ): string[] {
+    private segHeadRight(notchCentres: number[]): string[] {
+        const strokeWidth = this.input.strokeWidth;
         // The edge runs between the two corners, each inset by strokeWidth/2 so the stroke isn't clipped.
         const edgeStart = strokeWidth / 2; // top-right corner (pen arrives here)
-        const edgeEnd = headHeight - strokeWidth / 2; // bottom-right corner
+        const edgeEnd = this.dims.headHeight - strokeWidth / 2; // bottom-right corner
 
         // No notches — single straight run.
         if (notchCentres.length === 0) {
@@ -298,9 +322,11 @@ export class BrickOutlineGenerator {
      * @param width          - Total outer width of the brick
      * @param hasBottomNotch - Whether to draw the bottom notch tab
      */
-    private segHeadBottom(strokeWidth: number, width: number, hasBottomNotch: boolean): string[] {
+    private segHeadBottom(): string[] {
+        const strokeWidth = this.input.strokeWidth;
+        const width = this.dims.width;
         // No notch — single flat span going left.
-        if (!hasBottomNotch) {
+        if (!this.input.hasBottomNotch) {
             return [`h ${-(width - strokeWidth)}`];
         }
 
@@ -313,7 +339,7 @@ export class BrickOutlineGenerator {
 
         return [
             `h ${-flatBefore}`, // flat run to tab right edge
-            ...this.buildVTab(strokeWidth),
+            ...this.buildVTab(),
             `h ${-flatAfter}`, // flat run to brick left edge
         ];
     }
@@ -327,15 +353,16 @@ export class BrickOutlineGenerator {
      * @param height        - Total outer height of the brick
      * @param hasLeftNotch  - Whether to draw the left tab
      */
-    private segLeftEdge(strokeWidth: number, height: number, hasLeftNotch: boolean): string[] {
+    private segLeftEdge(): string[] {
+        const strokeWidth = this.input.strokeWidth;
         // The edge runs between the two corners, each inset by strokeWidth/2; travelled upward.
-        const edgeStart = height - strokeWidth / 2; // bottom-left corner (pen arrives here)
+        const edgeStart = this.dims.height - strokeWidth / 2; // bottom-left corner (pen arrives here)
         const edgeEnd = strokeWidth / 2; // top-left corner
 
         const tabR = H_NOTCH_RADIUS;
         const lip = (3 * strokeWidth) / 2;
 
-        if (!hasLeftNotch) {
+        if (!this.input.hasLeftNotch) {
             return [`v ${-(edgeStart - edgeEnd)}`];
         }
 
@@ -364,7 +391,9 @@ export class BrickOutlineGenerator {
      * @param strokeWidth        - Stroke width in SVG units
      * @param width              - Total outer width of the brick
      */
-    private segTailCavityRoof(strokeWidth: number, width: number): string[] {
+    private segTailCavityRoof(): string[] {
+        const strokeWidth = this.input.strokeWidth;
+        const width = this.dims.width;
         const span = width - TAIL_INDENT_W - strokeWidth;
 
         if (strokeWidth >= 2 * V_NOTCH_RADIUS) {
@@ -378,14 +407,15 @@ export class BrickOutlineGenerator {
 
         return [
             `h ${-flatBefore}`, // flat run to tab right edge
-            ...this.buildVTab(strokeWidth),
+            ...this.buildVTab(),
             `h ${-flatAfter}`, // flat run to cavity left wall
         ];
     }
 
-    private segTailCavityLeft(strokeWidth: number, nestHeight: number): string[] {
+    private segTailCavityLeft(): string[] {
+        const strokeWidth = this.input.strokeWidth;
         // Grows s/2 per seam: starts s/2 below the inset roof, ends s/2 above the inset floor.
-        return [`v ${nestHeight + strokeWidth / 2 + strokeWidth / 2}`];
+        return [`v ${this.dims.nestHeight + strokeWidth / 2 + strokeWidth / 2}`];
     }
 
     /**
@@ -395,7 +425,8 @@ export class BrickOutlineGenerator {
      *
      * @param strokeWidth          - Stroke width in SVG units
      */
-    private segTailFoot(strokeWidth: number): string[] {
+    private segTailFoot(): string[] {
+        const strokeWidth = this.input.strokeWidth;
         const span = TAIL_STEP_W - TAIL_INDENT_W;
 
         const flatBefore = NOTCH_OFFSET_X - V_NOTCH_RADIUS - strokeWidth / 2;
@@ -403,7 +434,7 @@ export class BrickOutlineGenerator {
 
         return [
             `h ${flatBefore}`, // flat run to groove left edge
-            ...this.buildVGroove(strokeWidth),
+            ...this.buildVGroove(),
             `h ${flatAfter}`, // flat run to step right wall
         ];
     }
@@ -419,9 +450,10 @@ export class BrickOutlineGenerator {
      * @param strokeWidth    - Stroke width in SVG units
      * @param hasBottomNotch - Whether to draw the bottom notch tab
      */
-    private segTailStepBottom(strokeWidth: number, hasBottomNotch: boolean): string[] {
+    private segTailStepBottom(): string[] {
+        const strokeWidth = this.input.strokeWidth;
         // No notch — single flat span going left.
-        if (!hasBottomNotch) {
+        if (!this.input.hasBottomNotch) {
             return [`h ${-TAIL_STEP_W}`];
         }
 
@@ -434,7 +466,7 @@ export class BrickOutlineGenerator {
 
         return [
             `h ${-flatBefore}`, // flat run to tab right edge
-            ...this.buildVTab(strokeWidth),
+            ...this.buildVTab(),
             `h ${-flatAfter}`, // flat run to step left wall
         ];
     }
@@ -446,15 +478,11 @@ export class BrickOutlineGenerator {
      * params, and args), applying minimum dimension constraints and aligning each region
      * to its corresponding slot in the outline geometry.
      */
-    private generateBounds(
-        input: BrickOutlineInput,
-        width: number,
-        headHeight: number,
-        nestHeight: number,
-        hasNesting: boolean,
-    ): BrickOutlineOutput['bounds'] {
+    private generateBounds(): BrickOutlineOutput['bounds'] {
         const { minLabelHeight, minNestHeight, minParamHeight, minArgHeight } = this.minimums;
+        const input = this.input;
         const strokeWidth = input.strokeWidth;
+        const { width, headHeight, nestHeight } = this.dims;
 
         const label: Bounds = {
             x: strokeWidth / 2 + HEAD_PAD_X1,
@@ -464,7 +492,7 @@ export class BrickOutlineGenerator {
         };
 
         let nesting: Bounds | undefined;
-        if (hasNesting) {
+        if (this.input.hasNesting) {
             nesting = {
                 x: TAIL_INDENT_W + strokeWidth / 2 + strokeWidth / 2,
                 y: headHeight,
@@ -516,47 +544,47 @@ export class BrickOutlineGenerator {
      *          and notch protrusion depths (for SVG viewBox sizing).
      */
     generate(input: BrickOutlineInput): BrickOutlineOutput {
-        const { width, height, headHeight, nestHeight } = this.computeDimensions(input);
+        this.input = {
+            ...input,
+            hasNesting: input.nestingDims !== undefined,
+            hasTopNotch: input.hasTopNotch ?? false,
+            hasBottomNotch: input.hasBottomNotch ?? false,
+            hasLeftNotch: input.hasLeftNotch ?? false,
+        };
+        this.computeDimensions(input);
 
-        const strokeWidth = input.strokeWidth;
-        const hasNesting = input.nestingDims !== undefined;
-
-        const hasTopNotch = input.hasTopNotch ?? false;
-        const hasBottomNotch = input.hasBottomNotch ?? false;
-        const hasLeftNotch = input.hasLeftNotch ?? false;
-
-        const argNotchCentreYs = this.computeArgNotchCentreYs(input.paramArgDims);
+        const argNotchCentreYs = this.computeArgNotchCentreYs();
 
         // Without nesting: top → right → bottom → left → close
         // With nesting:    top → right → cavityRoof → cavityLeft → foot → stepRight → stepBottom → left → close
-        const segments = !hasNesting
+        const segments = !this.input.hasNesting
             ? [
-                  ...this.segTopEdge(strokeWidth, width, hasTopNotch),
-                  ...this.segHeadRight(strokeWidth, headHeight, argNotchCentreYs),
-                  ...this.segHeadBottom(strokeWidth, width, hasBottomNotch),
-                  ...this.segLeftEdge(strokeWidth, height, hasLeftNotch),
+                  ...this.segTopEdge(),
+                  ...this.segHeadRight(argNotchCentreYs),
+                  ...this.segHeadBottom(),
+                  ...this.segLeftEdge(),
                   'Z',
               ]
             : [
-                  ...this.segTopEdge(strokeWidth, width, hasTopNotch),
-                  ...this.segHeadRight(strokeWidth, headHeight, argNotchCentreYs),
-                  ...this.segTailCavityRoof(strokeWidth, width),
-                  ...this.segTailCavityLeft(strokeWidth, nestHeight),
-                  ...this.segTailFoot(strokeWidth),
+                  ...this.segTopEdge(),
+                  ...this.segHeadRight(argNotchCentreYs),
+                  ...this.segTailCavityRoof(),
+                  ...this.segTailCavityLeft(),
+                  ...this.segTailFoot(),
                   ...this.segTailStepRight(),
-                  ...this.segTailStepBottom(strokeWidth, hasBottomNotch),
-                  ...this.segLeftEdge(strokeWidth, height, hasLeftNotch),
+                  ...this.segTailStepBottom(),
+                  ...this.segLeftEdge(),
                   'Z',
               ];
 
         const path = segments.join(' ');
 
-        const bounds = this.generateBounds(input, width, headHeight, nestHeight, hasNesting);
+        const bounds = this.generateBounds();
 
         return {
             path,
-            width,
-            height,
+            width: this.dims.width,
+            height: this.dims.height,
             bounds,
         };
     }
