@@ -50,17 +50,7 @@ export const NOTCH_OFFSET_Y = 9;
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────
 
-interface NormalizedInput extends Omit<
-    BrickOutlineInput,
-    'hasTopNotch' | 'hasBottomNotch' | 'hasLeftNotch'
-> {
-    hasNesting: boolean;
-    hasTopNotch: boolean;
-    hasBottomNotch: boolean;
-    hasLeftNotch: boolean;
-}
-
-interface ComputedDimensions {
+export interface ComputedDimensions {
     /** Total outer width of the brick */
     width: number;
     /** Total outer height of the brick (headHeight + tailHeight) */
@@ -69,6 +59,16 @@ interface ComputedDimensions {
     headHeight: number;
     /** Height of the nesting cavity between the head and the tail step; 0 when no nesting */
     nestHeight: number;
+}
+
+interface NormalizedInput extends Omit<
+    BrickOutlineInput,
+    'hasTopNotch' | 'hasBottomNotch' | 'hasLeftNotch'
+> {
+    hasNesting: boolean;
+    hasTopNotch: boolean;
+    hasBottomNotch: boolean;
+    hasLeftNotch: boolean;
 }
 
 export class BrickOutlineGenerator {
@@ -95,7 +95,7 @@ export class BrickOutlineGenerator {
 
     // ────────────────────────── Dimension Calculation ────────────────────────────────────────────────
 
-    computeDimensions(input: BrickOutlineInput): ComputedDimensions {
+    protected computeDimensions(input: BrickOutlineInput): ComputedDimensions {
         const { minWidth, minLabelHeight, minNestHeight, minParamHeight, minArgHeight } =
             this.minimums;
         const params = input.paramArgDims.map((p) => p.param ?? { w: 0, h: minParamHeight });

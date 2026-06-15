@@ -1,5 +1,7 @@
 import type { BrickMinimums, BrickOutlineInput } from '@masonry/@types/brick';
 
+import type { ComputedDimensions } from '../path2';
+
 import {
     HEAD_PAD_X1,
     HEAD_PAD_X2,
@@ -21,7 +23,13 @@ const MINIMUMS: BrickMinimums = {
     minArgHeight: 40,
 };
 
-const outlineGenerator = new BrickOutlineGenerator(MINIMUMS);
+class BrickOutlineGeneratorTest extends BrickOutlineGenerator {
+    public computeDimensions(input: BrickOutlineInput): ComputedDimensions {
+        return super.computeDimensions(input);
+    }
+}
+
+const outlineGenerator = new BrickOutlineGeneratorTest(MINIMUMS);
 const generateBrickOutline = (input: BrickOutlineInput) => outlineGenerator.generate(input);
 const computeDimensions = (input: BrickOutlineInput) => outlineGenerator.computeDimensions(input);
 
