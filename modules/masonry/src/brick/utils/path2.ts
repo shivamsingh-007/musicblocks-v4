@@ -162,8 +162,6 @@ export class BrickOutlineGenerator {
 
         const height = headHeight + tailHeight;
 
-        this.dims = { width, height, headHeight, nestHeight };
-
         return { width, height, headHeight, nestHeight };
     }
 
@@ -261,7 +259,8 @@ export class BrickOutlineGenerator {
      * @param headHeight   - Height of the head section
      * @param notchCentres - Absolute y positions (top → bottom) of each groove centre
      */
-    private segHeadRight(notchCentres: number[]): string[] {
+    private segHeadRight(): string[] {
+        const notchCentres = this.computeArgNotchCentreYs();
         const strokeWidth = this.input.strokeWidth;
         // The edge runs between the two corners, each inset by strokeWidth/2 so the stroke isn't clipped.
         const edgeStart = strokeWidth / 2; // top-right corner (pen arrives here)
@@ -551,23 +550,22 @@ export class BrickOutlineGenerator {
             hasBottomNotch: input.hasBottomNotch ?? false,
             hasLeftNotch: input.hasLeftNotch ?? false,
         };
-        this.computeDimensions(input);
 
-        const argNotchCentreYs = this.computeArgNotchCentreYs();
+        this.dims = this.computeDimensions(input);
 
         // Without nesting: top → right → bottom → left → close
         // With nesting:    top → right → cavityRoof → cavityLeft → foot → stepRight → stepBottom → left → close
         const segments = !this.input.hasNesting
             ? [
                   ...this.segTopEdge(),
-                  ...this.segHeadRight(argNotchCentreYs),
+                  ...this.segHeadRight(),
                   ...this.segHeadBottom(),
                   ...this.segLeftEdge(),
                   'Z',
               ]
             : [
                   ...this.segTopEdge(),
-                  ...this.segHeadRight(argNotchCentreYs),
+                  ...this.segHeadRight(),
                   ...this.segTailCavityRoof(),
                   ...this.segTailCavityLeft(),
                   ...this.segTailFoot(),
